@@ -415,7 +415,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (!engineInitializedRef.current && appKey) {
             NCEngine.initialize({
               appKey: appKey,
-              logLevel: LogLevel.DEBUG,
+              logLevel: LogLevel.WARN,
               areaCode: AreaCode.SG,
             });
             engineInitializedRef.current = true;
@@ -646,7 +646,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   m.id === tempId ? { ...m, status: 'sent', id: sendResult.data?.messageId || tempId } : m
                 ),
               }));
-              return true;
             }
           }
         } else if (text) {
@@ -659,7 +658,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 m.id === tempId ? { ...m, status: 'sent', id: sendResult.data?.messageId || tempId } : m
               ),
             }));
-            return true;
           }
         }
       } catch (sdkError) {
