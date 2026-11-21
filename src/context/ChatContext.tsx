@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { MOCK_USERS, MockUser, Product, getUserById } from '@/data/mockData';
-import { detectLanguage, translateText } from '@/utils/translator';
+import { detectLanguage, translateTextSync, translateTextAsync } from '@/utils/translator';
+import { generateAntseedSellerReply } from '@/utils/antseedSellerModel';
 
 export interface ChatMessage {
   id: string;
@@ -26,6 +27,8 @@ export interface ChatMessage {
   originalText?: string;
   translatedText?: string;
   isShowingOriginal?: boolean;
+  isAntseedModel?: boolean;
+  modelBadge?: string;
 }
 
 export type ConnectionStatus = 'DISCONNECTED' | 'CONNECTING' | 'CONNECTED' | 'ERROR' | 'UNCONFIGURED';
@@ -83,7 +86,6 @@ interface ChatContextType {
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
-// Helper to generate consistent channel key for 1:1 direct conversations
 export function getChannelKey(userA: string, userB: string): string {
   return [userA, userB].sort().join('__');
 }
@@ -110,7 +112,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [viewMode, setViewMode] = useState<'custom' | 'chatui'>('custom');
 
   // Translation state
-  const [preferredLanguage, setPreferredLanguage] = useState<string>('en');
+  const [preferredLanguage, setPreferredLanguageState] = useState<string>('en');
   const [autoTranslate, setAutoTranslate] = useState<boolean>(true);
 
   // Messages keyed by channel: getChannelKey(userA, userB)
@@ -141,7 +143,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshConfig();
   }, [refreshConfig]);
 
-  // Seed default demonstration messages including multi-language conversations
+  // Seed default demonstration messages
   useEffect(() => {
     const buyerId = 'user_buyer_1';
     const seller1Id = 'user_seller_1';
@@ -155,7 +157,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const channelBuyerSupport = getChannelKey(buyerId, supportId);
 
     setMessagesByChannel((prev) => {
-      // Don't overwrite if already seeded
       if (Object.keys(prev).length > 0) return prev;
 
       return {
@@ -167,6 +168,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             senderAvatar: getUserById(seller1Id)?.avatar,
             targetId: buyerId,
             text: 'Hello Alex! Thanks for checking out our Keychron Q1 Pro. All units are currently in stock with red linear switches.',
+            originalText: 'Hello Alex! Thanks for checking out our Keychron Q1 Pro. All units are currently in stock with red linear switches.',
             timestamp: now - 3600000 * 2,
             status: 'sent',
             isMe: false,
@@ -200,11 +202,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             senderAvatar: getUserById(seller1Id)?.avatar,
             targetId: buyerId,
             text: 'Yes! It includes both macOS and Windows keycaps, plus a switch puller and braided Type-C cable.',
+            originalText: 'Yes! It includes both macOS and Windows keycaps, plus a switch puller and braided Type-C cable.',
             imageUrl: 'https://images.unsplash.com/photo-1595225476474-87563907a212?auto=format&fit=crop&w=600&q=80',
             timestamp: now - 3600000 * 1,
             status: 'sent',
             isMe: false,
             language: 'en',
+            isAntseedModel: true,
+            modelBadge: 'Antseed Seller AI',
           },
         ],
         [channelBuyerSeller2]: [
@@ -232,6 +237,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             senderAvatar: getUserById(supportId)?.avatar,
             targetId: buyerId,
             text: 'Welcome to Nexxon Support! How can we assist you with your marketplace order today?',
+            originalText: 'Welcome to Nexxon Support! How can we assist you with your marketplace order today?',
             timestamp: now - 1800000,
             status: 'sent',
             isMe: false,
@@ -243,7 +249,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             senderName: 'Alex Rivera',
             senderAvatar: getUserById(buyerId)?.avatar,
             targetId: supportId,
-            text: 'I ordered the Keychron Q1 Pro keyboard yesterday. Can you verify shipping status?',
+            text: 'What is the estimated delivery time for the Keychron Q1 Pro keyboard?',
             originalText: '¿Cuál es el tiempo estimado de entrega para el teclado Keychron Q1 Pro?',
             translatedText: 'What is the estimated delivery time for the Keychron Q1 Pro keyboard?',
             language: 'es',
@@ -256,6 +262,72 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     });
   }, []);
+
+  // Real-time language switcher that dynamically re-translates messages and reflects immediately
+  const setPreferredLanguage = useCallback(
+    async (newLang: string) => {
+      setPreferredLanguageState(newLang);
+
+      // Re-translate messages across all active channels to reflect the new language
+      setMessagesByChannel((prev) => {
+        const next: Record<string, ChatMessage[]> = {};
+
+        for (const [chKey, msgs] of Object.entries(prev)) {
+          next[chKey] = msgs.map((msg) => {
+            const source = msg.originalText || msg.text || '';
+            if (newLang === 'en') {
+              return {
+                ...msg,
+                text: msg.originalText && msg.language !== 'en' ? msg.translatedText || source : msg.originalText || source,
+                isShowingOriginal: false,
+              };
+            }
+
+            // Translate message using dictionary/API
+            const syncTranslated = translateTextSync(source, newLang);
+            return {
+              ...msg,
+              originalText: msg.originalText || source,
+              translatedText: syncTranslated,
+              text: syncTranslated,
+              isShowingOriginal: false,
+            };
+          });
+        }
+        return next;
+      });
+
+      // Also trigger async translation for sentences not in sync dictionary
+      if (newLang !== 'en') {
+        setTimeout(async () => {
+          setMessagesByChannel((currentMap) => {
+            const updated = { ...currentMap };
+            for (const [chKey, msgs] of Object.entries(updated)) {
+              for (const m of msgs) {
+                const source = m.originalText || m.text || '';
+                if (source && m.language !== newLang) {
+                  translateTextAsync(source, newLang).then((translated) => {
+                    if (translated && translated !== source) {
+                      setMessagesByChannel((latest) => ({
+                        ...latest,
+                        [chKey]: (latest[chKey] || []).map((item) =>
+                          item.id === m.id
+                            ? { ...item, text: translated, translatedText: translated, isShowingOriginal: false }
+                            : item
+                        ),
+                      }));
+                    }
+                  });
+                }
+              }
+            }
+            return updated;
+          });
+        }, 50);
+      }
+    },
+    []
+  );
 
   // Toggle message original/translated view
   const toggleMessageOriginal = useCallback((channelKey: string, messageId: string) => {
@@ -273,31 +345,33 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Translate message manually to target language
   const translateMessageManually = useCallback(
-    (channelKey: string, messageId: string, targetLang: string) => {
-      setMessagesByChannel((prev) => {
-        const channelMsgs = prev[channelKey];
-        if (!channelMsgs) return prev;
-        return {
-          ...prev,
-          [channelKey]: channelMsgs.map((m) => {
-            if (m.id !== messageId) return m;
-            const source = m.originalText || m.text || '';
-            const translated = translateText(source, targetLang);
-            return {
-              ...m,
-              originalText: m.originalText || m.text,
-              translatedText: translated,
-              text: translated,
-              isShowingOriginal: false,
-            };
-          }),
-        };
-      });
+    async (channelKey: string, messageId: string, targetLang: string) => {
+      const channelMsgs = messagesByChannel[channelKey];
+      const targetMsg = channelMsgs?.find((m) => m.id === messageId);
+      if (!targetMsg) return;
+
+      const source = targetMsg.originalText || targetMsg.text || '';
+      const translated = await translateTextAsync(source, targetLang);
+
+      setMessagesByChannel((prev) => ({
+        ...prev,
+        [channelKey]: (prev[channelKey] || []).map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                originalText: m.originalText || m.text,
+                translatedText: translated,
+                text: translated,
+                isShowingOriginal: false,
+              }
+            : m
+        ),
+      }));
     },
-    []
+    [messagesByChannel]
   );
 
-  // Connect user to Nexconn Chat SDK when credentials are valid
+  // Connect user to Nexconn Chat SDK
   const connectUserToNexconn = useCallback(
     async (user: MockUser) => {
       if (!configStatus.isConfigured) {
@@ -365,56 +439,56 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
             NCEngine.addMessageHandler(
               'global-message-handler',
               new MessageHandler({
-                onMessageReceived({ messages }) {
-                  console.log('[Nexconn Messages Received]', messages);
+                async onMessageReceived({ messages }) {
                   if (!messages || messages.length === 0) return;
 
-                  setMessagesByChannel((prev) => {
-                    const next = { ...prev };
-                    for (const msg of messages) {
-                      const senderId = msg.senderUserId;
-                      const currentUserId = user.id;
-                      const channelKey = getChannelKey(senderId, currentUserId);
+                  for (const msg of messages) {
+                    const senderId = msg.senderUserId;
+                    const currentUserId = user.id;
+                    const channelKey = getChannelKey(senderId, currentUserId);
+                    const sender = getUserById(senderId);
+                    const isMe = senderId === currentUserId;
 
-                      const sender = getUserById(senderId);
-                      const isMe = senderId === currentUserId;
+                    let text = '';
+                    let imageUrl: string | undefined;
 
-                      let text = '';
-                      let imageUrl: string | undefined;
-
-                      if (msg.content) {
-                        text = (msg.content as any).text || (msg.content as any).content || '';
-                        imageUrl = (msg.content as any).remoteUrl || (msg.content as any).thumbnailBase64;
-                      }
-
-                      const detected = detectLanguage(text);
-                      const shouldTranslate = autoTranslate && detected !== preferredLanguage && text;
-                      const translated = shouldTranslate ? translateText(text, preferredLanguage) : undefined;
-
-                      const newMsg: ChatMessage = {
-                        id: msg.messageId || `remote-${Date.now()}-${Math.random()}`,
-                        senderId,
-                        senderName: sender?.name || `User ${senderId}`,
-                        senderAvatar: sender?.avatar,
-                        targetId: currentUserId,
-                        text: shouldTranslate ? translated : text,
-                        originalText: shouldTranslate ? text : undefined,
-                        translatedText: translated,
-                        language: detected,
-                        isShowingOriginal: false,
-                        imageUrl,
-                        timestamp: msg.sentTime || Date.now(),
-                        status: 'sent',
-                        isMe,
-                      };
-
-                      const existing = next[channelKey] || [];
-                      if (!existing.some((m) => m.id === newMsg.id)) {
-                        next[channelKey] = [...existing, newMsg];
-                      }
+                    if (msg.content) {
+                      text = (msg.content as any).text || (msg.content as any).content || '';
+                      imageUrl = (msg.content as any).remoteUrl || (msg.content as any).thumbnailBase64;
                     }
-                    return next;
-                  });
+
+                    const detected = detectLanguage(text);
+                    const shouldTranslate = autoTranslate && detected !== preferredLanguage && text;
+                    const translated = shouldTranslate
+                      ? await translateTextAsync(text, preferredLanguage, detected)
+                      : undefined;
+
+                    const newMsg: ChatMessage = {
+                      id: msg.messageId || `remote-${Date.now()}-${Math.random()}`,
+                      senderId,
+                      senderName: sender?.name || `User ${senderId}`,
+                      senderAvatar: sender?.avatar,
+                      targetId: currentUserId,
+                      text: shouldTranslate ? translated : text,
+                      originalText: shouldTranslate ? text : undefined,
+                      translatedText: translated,
+                      language: detected,
+                      isShowingOriginal: false,
+                      imageUrl,
+                      timestamp: msg.sentTime || Date.now(),
+                      status: 'sent',
+                      isMe,
+                    };
+
+                    setMessagesByChannel((prev) => {
+                      const existing = prev[channelKey] || [];
+                      if (existing.some((m) => m.id === newMsg.id)) return prev;
+                      return {
+                        ...prev,
+                        [channelKey]: [...existing, newMsg],
+                      };
+                    });
+                  }
                 },
               })
             );
@@ -430,7 +504,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (connResult.isOk || connResult.code === 0) {
             setConnectionStatus('CONNECTED');
             setStatusMessage(`Connected as ${user.name} (${connResult.data?.userId || user.id})`);
-            console.log('[Nexconn Connected Successfully]', connResult.data);
           } else {
             setConnectionStatus('ERROR');
             setStatusMessage(`Nexconn connection failed (code: ${connResult.code})`);
@@ -507,7 +580,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsSupportWidgetOpen(false);
   }, []);
 
-  // Send message with automatic language detection and translation support
+  // Send message with Antseed Seller AI response engine and automatic translation
   const sendMessage = async (
     targetUserId: string,
     text?: string,
@@ -533,6 +606,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       senderAvatar: currentUser.avatar,
       targetId: targetUserId,
       text: text || '',
+      originalText: text || '',
       imageUrl: previewUrl,
       timestamp: Date.now(),
       status: 'sending',
@@ -590,75 +664,88 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // In demo/mock or offline mode, mark sent after short delay
-    setTimeout(() => {
+    // In demo/mock or offline mode, simulate intelligent Antseed Seller AI and Support replies
+    setTimeout(async () => {
       setMessagesByChannel((prev) => ({
         ...prev,
         [channelKey]: (prev[channelKey] || []).map((m) => (m.id === tempId ? { ...m, status: 'sent' } : m)),
       }));
 
-      // Auto-reply in demo mode with intelligent translation
-      if (!configStatus.isConfigured) {
-        setTimeout(() => {
-          const target = getUserById(targetUserId);
-          if (target && target.role === 'support') {
-            const replyId = `reply-${Date.now()}`;
-            const englishReply = `Thanks for messaging support! Agent Emma has received: "${text || 'your attachment'}". In demo mode, Nexconn credentials enable live multi-language WebSocket delivery.`;
-            const replyText =
-              preferredLanguage !== 'en' && autoTranslate
-                ? translateText(englishReply, preferredLanguage)
-                : englishReply;
+      if (!configStatus.isConfigured || true) {
+        const target = getUserById(targetUserId);
+        if (!target) return;
 
-            const supportReply: ChatMessage = {
-              id: replyId,
-              senderId: targetUserId,
-              senderName: target.name,
-              senderAvatar: target.avatar,
-              targetId: currentUser.id,
-              text: replyText,
-              originalText: preferredLanguage !== 'en' ? englishReply : undefined,
-              translatedText: preferredLanguage !== 'en' ? replyText : undefined,
-              language: 'en',
-              isShowingOriginal: false,
-              timestamp: Date.now(),
-              status: 'sent',
-              isMe: false,
-            };
-            setMessagesByChannel((prev) => ({
-              ...prev,
-              [channelKey]: [...(prev[channelKey] || []), supportReply],
-            }));
-          } else if (target && target.role === 'seller') {
-            const replyId = `reply-${Date.now()}`;
-            const rawSellerReply = `Thanks for your interest in our products! We ship within 24 hours of payment. Feel free to ask any other questions!`;
-            const sellerReplyText =
-              preferredLanguage !== 'en' && autoTranslate
-                ? translateText(rawSellerReply, preferredLanguage)
-                : rawSellerReply;
+        // SELLER: Antseed Seller AI Model Response
+        if (target.role === 'seller') {
+          const effectiveProduct = productContext || activeProductContext;
+          const antseedReply = await generateAntseedSellerReply(
+            text || '',
+            target,
+            effectiveProduct,
+            preferredLanguage
+          );
 
-            const sellerReply: ChatMessage = {
-              id: replyId,
-              senderId: targetUserId,
-              senderName: target.name,
-              senderAvatar: target.avatar,
-              targetId: currentUser.id,
-              text: sellerReplyText,
-              originalText: preferredLanguage !== 'en' ? rawSellerReply : undefined,
-              translatedText: preferredLanguage !== 'en' ? sellerReplyText : undefined,
-              language: 'en',
-              isShowingOriginal: false,
-              timestamp: Date.now(),
-              status: 'sent',
-              isMe: false,
-            };
-            setMessagesByChannel((prev) => ({
-              ...prev,
-              [channelKey]: [...(prev[channelKey] || []), sellerReply],
-            }));
+          const replyId = `reply-antseed-${Date.now()}`;
+          const sellerReply: ChatMessage = {
+            id: replyId,
+            senderId: targetUserId,
+            senderName: target.name,
+            senderAvatar: target.avatar,
+            targetId: currentUser.id,
+            text: antseedReply.replyText,
+            originalText: antseedReply.originalText,
+            translatedText: antseedReply.replyText !== antseedReply.originalText ? antseedReply.replyText : undefined,
+            language: antseedReply.sourceLang,
+            isShowingOriginal: false,
+            timestamp: Date.now(),
+            status: 'sent',
+            isMe: false,
+            isAntseedModel: true,
+            modelBadge: 'Antseed Seller AI',
+          };
+
+          setMessagesByChannel((prev) => ({
+            ...prev,
+            [channelKey]: [...(prev[channelKey] || []), sellerReply],
+          }));
+        }
+        // SUPPORT: Support Agent Response
+        else if (target.role === 'support') {
+          const replyId = `reply-support-${Date.now()}`;
+          const englishReply = `Thanks for reaching out to Nexxon Support! Agent Emma has received your inquiry regarding "${text || 'your attachment'}". We are reviewing your order status with logistics now.`;
+          
+          let translated = englishReply;
+          if (preferredLanguage !== 'en') {
+            try {
+              translated = await translateTextAsync(englishReply, preferredLanguage, 'en');
+            } catch (e) {
+              translated = englishReply;
+            }
           }
-        }, 1200);
+
+          const supportReply: ChatMessage = {
+            id: replyId,
+            senderId: targetUserId,
+            senderName: target.name,
+            senderAvatar: target.avatar,
+            targetId: currentUser.id,
+            text: translated,
+            originalText: englishReply,
+            translatedText: translated !== englishReply ? translated : undefined,
+            language: 'en',
+            isShowingOriginal: false,
+            timestamp: Date.now(),
+            status: 'sent',
+            isMe: false,
+          };
+
+          setMessagesByChannel((prev) => ({
+            ...prev,
+            [channelKey]: [...(prev[channelKey] || []), supportReply],
+          }));
+        }
       }
-    }, 350);
+    }, 450);
 
     return true;
   };

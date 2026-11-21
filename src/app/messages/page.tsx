@@ -13,6 +13,7 @@ import {
   Languages,
   ToggleLeft,
   ToggleRight,
+  Sparkles,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -270,6 +271,14 @@ export default function MessagesPage() {
                                   alt="Attachment"
                                   className="max-h-52 rounded-xl mb-1 object-cover border border-gray-200 dark:border-[#2d3148] shadow-xs"
                                 />
+                              )}
+
+                              {/* Antseed Seller AI Model Badge */}
+                              {msg.isAntseedModel && (
+                                <div className="flex items-center gap-1.5 mb-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 dark:from-purple-950/50 dark:to-blue-950/50 border border-purple-200 dark:border-purple-800 text-[10px] font-semibold text-purple-700 dark:text-purple-300 shadow-2xs">
+                                  <Sparkles className="w-3 h-3 text-purple-600 dark:text-purple-400 animate-pulse" />
+                                  <span>Antseed Seller AI Assistant</span>
+                                </div>
                               )}
 
                               {displayText && (

@@ -16,6 +16,7 @@ import {
   Moon,
   Globe,
   Check,
+  BookOpen,
 } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
@@ -110,6 +111,17 @@ export const Navbar: React.FC = () => {
               {currentUser.role === 'support' && (
                 <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
               )}
+            </Link>
+            <Link
+              href="/about"
+              className={`px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+                pathname === '/about'
+                  ? 'bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-semibold'
+                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#1a1d27]'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 text-blue-500 dark:text-blue-400" />
+              <span>About & Guide</span>
             </Link>
           </nav>
         </div>

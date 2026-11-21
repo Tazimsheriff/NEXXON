@@ -16,11 +16,10 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'hi', name: 'Hindi', nativeName: 'हिन्दी', flag: '🇮🇳' },
 ];
 
-// Rich phrases dictionary for marketplace & support conversations
+// Rich fallback phrases dictionary
 const PHRASE_DICTIONARY: Record<string, Record<string, string>> = {
-  // Keychron keyboard inquiry
   'hello alex! thanks for checking out our keychron q1 pro. all units are currently in stock with red linear switches.': {
-    es: '¡Hola Alex! Gracias por ver nuestro Keychron Q1 Pro. Todas las unidades están disponibles con interruptores lineales rojos.',
+    es: '¡Hola Alex! Gracias por consultar sobre nuestro Keychron Q1 Pro. Todas las unidades están disponibles con interruptores lineales rojos.',
     fr: 'Bonjour Alex ! Merci de vous intéresser à notre Keychron Q1 Pro. Toutes les unités sont en stock avec des commutateurs linéaires rouges.',
     de: 'Hallo Alex! Vielen Dank für dein Interesse am Keychron Q1 Pro. Alle Einheiten sind mit roten linearen Schaltern auf Lager.',
     ja: 'こんにちはアレックス！Keychron Q1 Proをご覧いただきありがとうございます。全ユニットが赤軸リニアスイッチで在庫あります。',
@@ -46,7 +45,6 @@ const PHRASE_DICTIONARY: Record<string, Record<string, string>> = {
     ar: 'نعم! يتضمن أغطية مفاتيح macOS و Windows، بالإضافة إلى أداة سحب المفاتيح وسلك Type-C مجدول.',
     hi: 'हाँ! इसमें macOS और Windows दोनों कीकैप, साथ ही एक स्विच पुलर और ब्रेडेड टाइप-सी केबल शामिल हैं।',
   },
-  // Herman Miller
   'hi there! we offer free white-glove delivery on the herman miller embody chair.': {
     es: '¡Hola! Ofrecemos entrega de guante blanco gratuita para la silla Herman Miller Embody.',
     fr: 'Bonjour ! Nous offrons la livraison spéciale gratuite pour la chaise Herman Miller Embody.',
@@ -56,7 +54,6 @@ const PHRASE_DICTIONARY: Record<string, Record<string, string>> = {
     ar: 'مرحباً! نقدم خدمة توصيل وتركيب مجانية لكرسي Herman Miller Embody.',
     hi: 'नमस्ते! हम हरमन मिलर एम्बॉडी चेयर पर मुफ्त वाइट-ग्लव डिलीवरी प्रदान करते हैं।',
   },
-  // Support welcome
   'welcome to nexxon support! how can we assist you with your marketplace order today?': {
     es: '¡Bienvenido a Soporte Nexxon! ¿Cómo podemos ayudarte con tu pedido del mercado hoy?',
     fr: 'Bienvenue sur l\'assistance Nexxon ! Comment pouvons-nous vous aider aujourd\'hui ?',
@@ -86,41 +83,28 @@ const PHRASE_DICTIONARY: Record<string, Record<string, string>> = {
   },
 };
 
-/**
- * Detects language or returns 'en' by default
- */
 export function detectLanguage(text: string): string {
   if (!text) return 'en';
-  // Check Spanish accents and punctuation
   if (/[¿¡áéíóúñ]/i.test(text)) return 'es';
-  // Check Japanese hiragana / katakana
   if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return 'ja';
-  // Check Chinese characters
   if (/[\u4E00-\u9FFF]/.test(text)) return 'zh';
-  // Check Arabic
   if (/[\u0600-\u06FF]/.test(text)) return 'ar';
-  // Check Hindi Devanagari
   if (/[\u0900-\u097F]/.test(text)) return 'hi';
-  // Check German umlauts
   if (/[äöüßÄÖÜ]/.test(text)) return 'de';
-  // Check French accents
   if (/[àâçéèêëîïôûùüÿñæœ]/i.test(text)) return 'fr';
-
   return 'en';
 }
 
 /**
- * Translates a text string to target language with intelligent dictionary and phonetic/template fallback
+ * Fast synchronous dictionary translation
  */
-export function translateText(text: string, targetLang: string): string {
+export function translateTextSync(text: string, targetLang: string): string {
   if (!text || targetLang === 'en') {
-    // If target is English and text is in dictionary backwards, reverse it
     const normalized = text.toLowerCase().trim();
     for (const [enKey, trans] of Object.entries(PHRASE_DICTIONARY)) {
       if (enKey === normalized) return text;
-      for (const [lang, val] of Object.entries(trans)) {
+      for (const [, val] of Object.entries(trans)) {
         if (val.toLowerCase() === normalized) {
-          // Capitalize appropriately
           return enKey.charAt(0).toUpperCase() + enKey.slice(1);
         }
       }
@@ -130,21 +114,54 @@ export function translateText(text: string, targetLang: string): string {
 
   const normalized = text.toLowerCase().trim();
   const directMatch = PHRASE_DICTIONARY[normalized]?.[targetLang];
-  if (directMatch) {
-    return directMatch;
+  if (directMatch) return directMatch;
+
+  return text;
+}
+
+/**
+ * Real-time translation with API route and in-memory caching
+ */
+const clientCache = new Map<string, string>();
+
+export async function translateTextAsync(
+  text: string,
+  targetLang: string,
+  sourceLang: string = 'auto'
+): Promise<string> {
+  if (!text || targetLang === sourceLang) return text;
+
+  const cacheKey = `${sourceLang}:${targetLang}:${text.trim().toLowerCase()}`;
+  if (clientCache.has(cacheKey)) {
+    return clientCache.get(cacheKey)!;
   }
 
-  // Language greeting / suffix translation template
-  const langLabels: Record<string, string> = {
-    es: 'Traducido al español',
-    fr: 'Traduit en français',
-    de: 'Ins Deutsche übersetzt',
-    ja: '日本語に翻訳',
-    zh: '已翻译为中文',
-    ar: 'مترجم إلى العربية',
-    hi: 'हिन्दी में अनुवादित',
-  };
+  // Check sync dictionary first for immediate return
+  const dictMatch = translateTextSync(text, targetLang);
+  if (dictMatch !== text) {
+    clientCache.set(cacheKey, dictMatch);
+    return dictMatch;
+  }
 
-  const label = langLabels[targetLang] || `Translated to ${targetLang.toUpperCase()}`;
-  return `${text} (${label})`;
+  try {
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, targetLang, sourceLang }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.translated) {
+        clientCache.set(cacheKey, data.translated);
+        return data.translated;
+      }
+    }
+  } catch (err) {
+    console.warn('[translateTextAsync error]', err);
+  }
+
+  return text;
 }
+
+export const translateText = translateTextSync;
