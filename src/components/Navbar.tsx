@@ -63,15 +63,15 @@ export const Navbar: React.FC = () => {
         {/* Brand */}
         <div className="flex items-center gap-6">
           <Link href="/" className="flex items-center gap-2.5 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <ShoppingBag className="w-5 h-5" />
+            <div className="w-9 h-9 rounded-none bg-[#c86d51] flex items-center justify-center text-white shadow-sm">
+              <ShoppingBag className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-gray-900 via-blue-900 to-indigo-600 dark:from-white dark:via-blue-300 dark:to-indigo-300 bg-clip-text text-transparent">
+              <span className="font-editorial text-xl tracking-tight text-[#111215] dark:text-[#f9f8f6] font-normal uppercase">
                 NEXXON
               </span>
-              <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold block -mt-1 tracking-wider uppercase">
-                Market & Chat
+              <span className="font-mono-tag text-[9px] text-[#c86d51] font-semibold block -mt-1 tracking-widest uppercase">
+                Archive &amp; Escrow
               </span>
             </div>
           </Link>

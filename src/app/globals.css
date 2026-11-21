@@ -1,26 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 /* Enable class-based dark mode for Tailwind v4 */
 @variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
-  --surface: #f9fafb;
-  --surface-alt: #f3f4f6;
-  --border: #e5e7eb;
-  --border-strong: #d1d5db;
-  --muted: #6b7280;
+  --background: #fcfbf9;
+  --foreground: #111215;
+  --surface: #ffffff;
+  --surface-alt: #f4f2ee;
+  --border: #e3dfd7;
+  --border-strong: #c8c2b7;
+  --muted: #6f6a62;
+  --terracotta: #c86d51;
+  --terracotta-hover: #b35c42;
 }
 
 .dark {
-  --background: #0f1117;
-  --foreground: #f3f4f6;
-  --surface: #1a1d27;
-  --surface-alt: #22263a;
-  --border: #2d3148;
-  --border-strong: #3d4166;
-  --muted: #9ca3af;
+  --background: #111215;
+  --foreground: #f9f8f6;
+  --surface: #18191e;
+  --surface-alt: #1f2026;
+  --border: #27282f;
+  --border-strong: #383944;
+  --muted: #a39e94;
+  --terracotta: #c86d51;
+  --terracotta-hover: #d3795c;
+}
+
+.font-editorial {
+  font-family: 'Bodoni Moda', Georgia, serif;
+}
+
+.font-grotesk {
+  font-family: 'Hanken Grotesk', system-ui, sans-serif;
+}
+
+.font-mono-tag {
+  font-family: 'JetBrains Mono', monospace;
 }
 
 @theme inline {
