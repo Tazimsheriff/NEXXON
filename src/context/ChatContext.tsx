@@ -680,12 +680,14 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // SELLER: Antseed Seller AI Model Response
         if (target.role === 'seller') {
+          const currentChannelHistory = messagesByChannel[channelKey] || [];
           const effectiveProduct = productContext || activeProductContext;
           const antseedReply = await generateAntseedSellerReply(
             text || '',
             target,
             effectiveProduct,
-            preferredLanguage
+            preferredLanguage,
+            currentChannelHistory
           );
 
           const replyId = `reply-antseed-${Date.now()}`;

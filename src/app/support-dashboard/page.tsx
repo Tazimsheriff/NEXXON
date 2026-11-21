@@ -17,6 +17,7 @@ import {
   UserCheck,
   Clock3,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 
 const CANNED_RESPONSES = [
@@ -446,6 +447,14 @@ export default function SupportDashboardPage() {
                         )}
 
                         <div className={`max-w-[80%] flex flex-col ${isAgentMsg ? 'items-end' : 'items-start'}`}>
+                          {/* Antseed Seller AI Model Badge */}
+                          {msg.isAntseedModel && (
+                            <div className="flex items-center gap-1.5 mb-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 dark:from-purple-950/50 dark:to-blue-950/50 border border-purple-200 dark:border-purple-800 text-[10px] font-semibold text-purple-700 dark:text-purple-300 shadow-2xs">
+                              <Sparkles className="w-3 h-3 text-purple-600 dark:text-purple-400 animate-pulse" />
+                              <span>Antseed Seller AI Assistant</span>
+                            </div>
+                          )}
+
                           {msg.imageUrl && (
                             <img
                               src={msg.imageUrl}
